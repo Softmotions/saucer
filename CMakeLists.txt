@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 project(saucer LANGUAGES CXX VERSION 4.2.0)
+set(CMAKE_CXX_FLAGS "-stdlib=libc++")
 
 # --------------------------------------------------------------------------------------------------------
 # Library switches
@@ -408,6 +409,8 @@ if (saucer_prefer_remote AND saucer_backend STREQUAL "WebView2")
 endif()
 
 install(DIRECTORY "include/saucer" TYPE INCLUDE)
-install(DIRECTORY "$<TARGET_PROPERTY:fmt,INTERFACE_INCLUDE_DIRECTORIES>/fmt" TYPE INCLUDE)
+if(saucer_fmt_install)
+  install(DIRECTORY "$<TARGET_PROPERTY:fmt,INTERFACE_INCLUDE_DIRECTORIES>/fmt" TYPE INCLUDE)
+endif()
 install(DIRECTORY "$<TARGET_PROPERTY:glaze_glaze,INTERFACE_INCLUDE_DIRECTORIES>/glaze" TYPE INCLUDE)
 install(DIRECTORY "$<TARGET_PROPERTY:boost_callable_traits,INTERFACE_INCLUDE_DIRECTORIES>/boost" TYPE INCLUDE)

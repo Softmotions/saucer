@@ -1,4 +1,5 @@
 #include "gtk.app.impl.hpp"
+#include <format>
 
 #include <ranges>
 
