@@ -208,8 +208,7 @@ if (saucer_polyfill_thread)
 
   install(DIRECTORY "$<TARGET_PROPERTY:nonstd::jthread,INTERFACE_INCLUDE_DIRECTORIES>" TYPE INCLUDE)
   link_libraries(nonstd::jthread)
-  target_precompile_headers(${PROJECT_NAME} PRIVATE "polyfill/jthread.hpp")
-  install(FILES "polyfill/jthread.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
+  target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/jthread.hpp")
   set(saucer_fmt_install OFF)
 endif()
 
@@ -224,8 +223,7 @@ if (saucer_polyfill_functional)
 
   install(DIRECTORY "$<TARGET_PROPERTY:function2::function2,INTERFACE_INCLUDE_DIRECTORIES>/function2" TYPE INCLUDE)
   link_libraries(function2::function2)
-  target_precompile_headers(${PROJECT_NAME} PRIVATE "polyfill/functional.hpp")
-  install(FILES "polyfill/functional.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
+  target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/functional.hpp")
   set(saucer_fmt_install OFF)
 endif()
 
@@ -241,8 +239,7 @@ if (saucer_polyfill_expected)
   )
 
   link_libraries(tl::expected)
-  target_precompile_headers(${PROJECT_NAME} PRIVATE "polyfill/expected.hpp")
-  install(FILES "polyfill/expected.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
+  target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/expected.hpp")
   set(saucer_fmt_install OFF)
 endif()
 
