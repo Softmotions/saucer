@@ -206,9 +206,10 @@ if (saucer_polyfill_thread)
     GIT_REPOSITORY "https://github.com/saucer/jthread"
   )
 
+  install(DIRECTORY "$<TARGET_PROPERTY:nonstd::jthread,INTERFACE_INCLUDE_DIRECTORIES>" TYPE INCLUDE)
   link_libraries(nonstd::jthread)
   target_precompile_headers(${PROJECT_NAME} PUBLIC "polyfill/jthread.hpp")
-
+  install(FILES "polyfill/jthread.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
   set(saucer_fmt_install OFF)
 endif()
 
@@ -221,9 +222,10 @@ if (saucer_polyfill_functional)
     GIT_REPOSITORY "https://github.com/saucer/function2"
   )
 
+  install(DIRECTORY "$<TARGET_PROPERTY:function2::function2,INTERFACE_INCLUDE_DIRECTORIES>/function2" TYPE INCLUDE)
   link_libraries(function2::function2)
   target_precompile_headers(${PROJECT_NAME} PUBLIC "polyfill/functional.hpp")
-  
+  install(FILES "polyfill/functional.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
   set(saucer_fmt_install OFF)
 endif()
 
@@ -240,6 +242,7 @@ if (saucer_polyfill_expected)
 
   link_libraries(tl::expected)
   target_precompile_headers(${PROJECT_NAME} PUBLIC "polyfill/expected.hpp")
+  install(FILES "polyfill/expected.hpp" DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/polyfill)
   
   set(saucer_fmt_install OFF)
 endif()
