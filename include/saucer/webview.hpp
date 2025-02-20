@@ -1,12 +1,18 @@
 #pragma once
 
-#include "icon.hpp"
-
 #include "window.hpp"
+
+#include "stash/stash.hpp"
+#include "modules/module.hpp"
+
+#include "icon.hpp"
 #include "script.hpp"
 
 #include "scheme.hpp"
 #include "navigation.hpp"
+
+#include <array>
+#include <cstdint>
 
 #include <filesystem>
 #include <unordered_map>
@@ -34,6 +40,12 @@ namespace saucer
         finished,
     };
 
+    enum class launch
+    {
+        sync,
+        async,
+    };
+
     struct embedded_file
     {
         stash<> content;
@@ -42,12 +54,15 @@ namespace saucer
 
     using color = std::array<std::uint8_t, 4>;
 
-    struct webview : public window
+    struct webview : window, extensible<webview, modules::webview>
     {
         struct impl;
 
       private:
         using embedded_files = std::unordered_map<std::string, embedded_file>;
+
+      protected:
+        using window::m_parent;
 
       public:
         using events = ereignis::manager<                                     //
@@ -68,6 +83,7 @@ namespace saucer
 
       protected:
         virtual bool on_message(const std::string &);
+        void handle_scheme(const std::string &, scheme::resolver &&, launch);
 
       public:
         webview(const preferences &);
@@ -76,7 +92,8 @@ namespace saucer
         ~webview() override;
 
       public:
-        [[nodiscard]] impl *native() const;
+        template <bool Stable = true>
+        [[nodiscard]] natives<webview, Stable> native() const;
 
       public:
         [[sc::thread_safe]] [[nodiscard]] icon favicon() const;
@@ -111,7 +128,7 @@ namespace saucer
         [[sc::thread_safe]] void reload();
 
       public:
-        [[sc::thread_safe]] void embed(embedded_files files);
+        [[sc::thread_safe]] void embed(embedded_files files, launch policy = launch::sync);
         [[sc::thread_safe]] void serve(const std::string &file);
 
       public:
@@ -126,7 +143,8 @@ namespace saucer
         [[sc::thread_safe]] void execute(const std::string &code);
 
       public:
-        [[sc::thread_safe]] void handle_scheme(const std::string &name, scheme::handler handler);
+        template <typename T>
+        [[sc::thread_safe]] void handle_scheme(const std::string &name, T &&handler, launch policy = launch::sync);
         [[sc::thread_safe]] void remove_scheme(const std::string &name);
 
       public:
@@ -148,3 +166,5 @@ namespace saucer
         [[sc::before_init]] static void register_scheme(const std::string &name);
     };
 } // namespace saucer
+
+#include "webview.inl"

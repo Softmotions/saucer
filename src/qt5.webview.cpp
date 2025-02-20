@@ -1,9 +1,10 @@
 #include "qt.webview.impl.hpp"
 
+#include <algorithm>
+
 #include <QWebEngineScript>
 #include <QWebEngineScriptCollection>
 
-#include <algorithm>
 #include <fmt/core.h>
 
 namespace saucer
@@ -12,7 +13,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, script] { inject(script); });
+            return m_parent->dispatch([this, script] { inject(script); });
         }
 
         if (script.permanent && !std::ranges::contains(m_impl->permanent_scripts, script))

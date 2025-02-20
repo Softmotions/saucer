@@ -57,6 +57,9 @@ It supports all three major desktop operating systems (Windows, Linux, MacOS) an
     </tr>
   </table>
 
+* 👾 Feature-Rich
+  > Supports custom schemes, script injection, favicons, and much more!
+
 * 🔀 Seamless C++ / JavaScript interoperability
 
 * 📦 Supports Embedding Frontend into binary
@@ -66,11 +69,24 @@ It supports all three major desktop operating systems (Windows, Linux, MacOS) an
 
 * 🧰 Customizability
   > Modules allow access to platform specific implementations, making it possible to tweak the library to your hearts content
+  
+  * Official Modules
+    * 🖥️ [saucer/desktop](https://github.com/saucer/desktop) 
+      > 📂 File-Picker and URI-Launch support
+    
+    * 🖨️ [saucer/pdf](https://github.com/saucer/pdf) 
+      > 📄 Print current page as PDF
 
 * 🏗️ [Bindings](https://github.com/saucer/bindings)
   > Saucer also exposes a C-Interface, thus making it possible to write bindings for it in your favorite language!
 
 * 🦺 Thread-Safe
+
+* 🧨 No Exceptions 
+  > Compiles with `-fno-exceptions`!
+
+* 🏃 No RTTI
+  > Compiles with `-fno-rtti`!
 
 * ⚖️ FOSS
   > Licensed under MIT!
@@ -86,7 +102,7 @@ It supports all three major desktop operating systems (Windows, Linux, MacOS) an
 
 int main()
 {
-    auto app = saucer::application::acquire({
+    auto app = saucer::application::init({
         .id = "example",
     });
 
@@ -114,3 +130,16 @@ int main()
     return 0;
 }
 ```
+
+## 🌐 Who's using saucer?
+
+<div align="center">
+<br/>
+
+<a href="https://casterlabs.co/" target="_blank">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://cdn.casterlabs.co/branding/casterlabs/wordmark_white.svg">
+        <img width="300" src="https://cdn.casterlabs.co/branding/casterlabs/wordmark_black.svg">
+    </picture>
+</a>
+</div>

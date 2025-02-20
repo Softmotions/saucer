@@ -6,7 +6,7 @@
 #include "wkg.scheme.impl.hpp"
 
 #include <vector>
-#include <unordered_map>
+#include <string_view>
 
 #include <webkit/webkit.h>
 
@@ -19,7 +19,7 @@ namespace saucer
         WebKitWebView *web_view;
 
       public:
-        gulong message_received;
+        gulong msg_received;
         WebKitUserContentManager *manager;
 
       public:
@@ -43,6 +43,6 @@ namespace saucer
 
       public:
         static constinit std::string_view ready_script;
-        static inline std::unordered_map<std::string, std::unique_ptr<scheme::scheme_handler>> schemes;
+        static inline std::unordered_map<std::string, std::unique_ptr<scheme::handler>> schemes;
     };
 } // namespace saucer

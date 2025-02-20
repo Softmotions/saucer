@@ -2,14 +2,8 @@
 
 #include "scripts.hpp"
 
-#include "serializers/data.hpp"
-#include "serializers/serializer.hpp"
-
-#include <rebind/enum.hpp>
 #include <lockpp/lock.hpp>
-
 #include <fmt/core.h>
-#include <poolparty/pool.hpp>
 
 namespace saucer
 {
@@ -20,19 +14,15 @@ namespace saucer
 
     struct smartview_core::impl
     {
-        using id             = std::uint64_t;
-        using pending_future = std::shared_ptr<std::future<void>>;
+        using exposed = std::shared_ptr<std::pair<function, launch>>;
 
       public:
-        lock<std::unordered_map<id, resolver>> evaluations;
-        lock<std::unordered_map<std::string, std::pair<function, launch>>> functions;
+        lock<std::unordered_map<std::string, exposed>> functions;
+        lock<std::unordered_map<std::uint64_t, resolver>> evaluations;
 
       public:
         std::unique_ptr<saucer::serializer> serializer;
-        std::shared_ptr<lockpp::lock<smartview_core *>> parent;
-
-      public:
-        static inline std::unique_ptr<poolparty::pool<>> pool;
+        std::shared_ptr<lockpp::lock<smartview_core *>> self;
     };
 
     smartview_core::smartview_core(std::unique_ptr<serializer> serializer, const preferences &prefs)
@@ -40,13 +30,8 @@ namespace saucer
     {
         using namespace scripts;
 
-        if (!impl::pool)
-        {
-            impl::pool = std::make_unique<poolparty::pool<>>(prefs.threads);
-        }
-
         m_impl->serializer = std::move(serializer);
-        m_impl->parent     = std::make_shared<lockpp::lock<smartview_core *>>(this);
+        m_impl->self       = std::make_shared<lockpp::lock<smartview_core *>>(this);
 
         auto script = fmt::format(smartview_script, fmt::arg("serializer", m_impl->serializer->js_serializer()));
 
@@ -56,16 +41,8 @@ namespace saucer
 
     smartview_core::~smartview_core()
     {
-        auto locked = m_impl->parent->write();
+        auto locked = m_impl->self->write();
         *locked     = nullptr;
-    }
-
-    saucer::natives smartview_core::natives() const
-    {
-        return {
-            .window  = window::native(),
-            .webview = webview::native(),
-        };
     }
 
     bool smartview_core::on_message(const std::string &message)
@@ -77,90 +54,94 @@ namespace saucer
 
         auto parsed = m_impl->serializer->parse(message);
 
-        if (!parsed)
+        if (std::holds_alternative<std::monostate>(parsed))
         {
             return false;
         }
 
-        if (auto *data = dynamic_cast<function_data *>(parsed.get()); data)
+        if (std::holds_alternative<std::unique_ptr<function_data>>(parsed))
         {
-            call(std::move(parsed));
+            call(std::move(std::get<0>(parsed)));
             return true;
         }
 
-        if (auto *data = dynamic_cast<result_data *>(parsed.get()); data)
+        if (std::holds_alternative<std::unique_ptr<result_data>>(parsed))
         {
-            resolve(std::move(parsed));
+            resolve(std::move(std::get<1>(parsed)));
             return true;
         }
 
         return false;
     }
 
-    void smartview_core::call(std::unique_ptr<message_data> data)
+    void smartview_core::call(std::unique_ptr<function_data> message)
     {
-        const auto &message = *static_cast<function_data *>(data.get());
-        auto functions      = m_impl->functions.copy();
+        impl::exposed exposed;
 
-        if (!functions.contains(message.name))
+        if (auto locked = m_impl->functions.write(); locked->contains(message->name))
         {
-            return reject(message.id, fmt::format("\"No exposed function '{}'\"", message.name));
+            exposed = locked->at(message->name);
+        }
+        else
+        {
+            return reject(message->id, fmt::format("\"No exposed function '{}'\"", message->name));
         }
 
-        auto resolve = [parent = m_impl->parent, id = message.id](const auto &result)
+        auto resolve = [shared = m_impl->self, id = message->id](const auto &result)
         {
-            auto core = parent->read();
+            auto self = shared->read();
 
-            if (!core.value())
+            if (!self.value())
             {
                 return;
             }
 
-            core.value()->resolve(id, result);
+            self.value()->resolve(id, result);
         };
 
-        auto reject = [parent = m_impl->parent, id = message.id](const auto &error)
+        auto reject = [shared = m_impl->self, id = message->id](const auto &error)
         {
-            auto core = parent->read();
+            auto self = shared->read();
 
-            if (!core.value())
+            if (!self.value())
             {
                 return;
             }
 
-            core.value()->reject(id, error);
+            self.value()->reject(id, error);
         };
 
-        auto executor        = serializer::executor{resolve, reject};
-        auto &[func, policy] = functions[message.name];
+        auto executor     = serializer::executor{std::move(resolve), std::move(reject)};
+        const auto policy = exposed->second;
 
         if (policy == launch::sync)
         {
-            return std::invoke(func, std::move(data), executor);
+            return std::invoke(exposed->first, std::move(message), executor);
         }
 
-        m_impl->pool->emplace([func, data = std::move(data), executor = std::move(executor)]() mutable
-                              { std::invoke(func, std::move(data), executor); });
+        m_parent->pool().emplace(
+            [exposed = std::move(exposed), message = std::move(message), executor = std::move(executor)]() mutable
+            { std::invoke(exposed->first, std::move(message), executor); });
     }
 
-    void smartview_core::resolve(std::unique_ptr<message_data> data)
+    void smartview_core::resolve(std::unique_ptr<result_data> message)
     {
-        const auto &message = *static_cast<result_data *>(data.get());
-        auto evals          = m_impl->evaluations.write();
+        const auto id = message->id;
+        auto evals    = m_impl->evaluations.write();
 
-        if (!evals->contains(message.id))
+        if (!evals->contains(id))
         {
             return;
         }
 
-        std::invoke(evals->at(message.id), std::move(data));
-        evals->erase(message.id);
+        std::invoke(evals->at(id), std::move(message));
+        evals->erase(id);
     }
 
     void smartview_core::add_function(std::string name, function &&resolve, launch policy)
     {
         auto functions = m_impl->functions.write();
-        functions->emplace(std::move(name), std::make_pair(std::move(resolve), policy));
+        functions->emplace(std::move(name), std::make_shared<impl::exposed::element_type>(std::move(resolve), policy));
     }
 
     void smartview_core::add_evaluation(resolver &&resolve, const std::string &code)

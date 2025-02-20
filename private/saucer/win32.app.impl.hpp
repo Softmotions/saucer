@@ -17,7 +17,7 @@ namespace saucer
 
       public:
         HMODULE handle;
-        utils::win_handle<HWND, DestroyWindow> msg_window;
+        utils::window_handle msg_window;
 
       public:
         DWORD thread;
@@ -25,7 +25,7 @@ namespace saucer
 
       public:
         std::unordered_map<HWND, bool> instances;
-        utils::win_handle<ULONG_PTR, Gdiplus::GdiplusShutdown> gdi_token;
+        utils::handle<ULONG_PTR, Gdiplus::GdiplusShutdown> gdi_token;
 
       public:
         static LRESULT CALLBACK wnd_proc(HWND, UINT, WPARAM, LPARAM);

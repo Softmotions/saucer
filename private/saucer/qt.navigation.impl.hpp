@@ -2,9 +2,7 @@
 
 #include "navigation.hpp"
 
-#include <QtGlobal>
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 2, 0)
+#ifdef SAUCER_QT6
 #include <variant>
 #include <QWebEngineNewWindowRequest>
 #include <QWebEngineNavigationRequest>
@@ -12,7 +10,7 @@
 
 namespace saucer
 {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 2, 0)
+#ifdef SAUCER_QT6
     struct navigation::impl
     {
         std::variant<QWebEngineNewWindowRequest *, QWebEngineNavigationRequest *> request;

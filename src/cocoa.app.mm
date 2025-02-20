@@ -2,7 +2,7 @@
 
 namespace saucer
 {
-    application::application(const options &) : m_impl(std::make_unique<impl>())
+    application::application(const options &opts) : extensible(this), m_pool(opts.threads), m_impl(std::make_unique<impl>())
     {
         m_impl->thread      = std::this_thread::get_id();
         m_impl->application = [NSApplication sharedApplication];
@@ -28,7 +28,7 @@ namespace saucer
         dispatch_async(queue,
                        [ptr]
                        {
-                           const autorelease_guard guard{};
+                           const utils::autorelease_guard guard{};
 
                            auto callback = std::unique_ptr<callback_t>{ptr};
                            std::invoke(*callback);
@@ -44,7 +44,7 @@ namespace saucer
     template <>
     void application::run<false>() const // NOLINT(*-static)
     {
-        const autorelease_guard guard{};
+        const utils::autorelease_guard guard{};
 
         auto *const event = [NSApp nextEventMatchingMask:NSEventMaskAny
                                                untilDate:[NSDate now]

@@ -8,9 +8,10 @@
 
 #include <cassert>
 
-#include <fmt/core.h>
 #include <rebind/enum.hpp>
 #include <flagpp/flags.hpp>
+
+#include <dwmapi.h>
 
 template <>
 constexpr bool flagpp::enabled<saucer::window_edge> = true;
@@ -21,17 +22,17 @@ namespace saucer
     {
         assert(m_parent->thread_safe() && "Construction outside of the main-thread is not permitted");
 
-        m_impl->hwnd = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP,      //
-                                       m_parent->native()->id.c_str(), //
-                                       L"",                            //
-                                       WS_OVERLAPPEDWINDOW,            //
-                                       CW_USEDEFAULT,                  //
-                                       CW_USEDEFAULT,                  //
-                                       CW_USEDEFAULT,                  //
-                                       CW_USEDEFAULT,                  //
-                                       nullptr,                        //
-                                       nullptr,                        //
-                                       m_parent->native()->handle,     //
+        m_impl->hwnd = CreateWindowExW(WS_EX_NOREDIRECTIONBITMAP,             //
+                                       m_parent->native<false>()->id.c_str(), //
+                                       L"",                                   //
+                                       WS_OVERLAPPEDWINDOW,                   //
+                                       CW_USEDEFAULT,                         //
+                                       CW_USEDEFAULT,                         //
+                                       CW_USEDEFAULT,                         //
+                                       CW_USEDEFAULT,                         //
+                                       nullptr,                               //
+                                       nullptr,                               //
+                                       m_parent->native<false>()->handle,     //
                                        nullptr);
 
         assert(m_impl->hwnd.get() && "CreateWindowExW() failed");
@@ -44,9 +45,9 @@ namespace saucer
 
     window::~window()
     {
-        for (const auto &event : rebind::enum_fields<window_event>)
+        for (const auto &event : rebind::enum_values<window_event>)
         {
-            m_events.clear(event.value);
+            m_events.clear(event);
         }
 
         close();
@@ -58,7 +59,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return visible(); });
+            return m_parent->dispatch([this] { return visible(); });
         }
 
         return IsWindowVisible(m_impl->hwnd.get());
@@ -68,7 +69,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return focused(); });
+            return m_parent->dispatch([this] { return focused(); });
         }
 
         return m_impl->hwnd.get() == GetForegroundWindow();
@@ -78,7 +79,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return minimized(); });
+            return m_parent->dispatch([this] { return minimized(); });
         }
 
         return IsIconic(m_impl->hwnd.get());
@@ -88,52 +89,57 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return maximized(); });
+            return m_parent->dispatch([this] { return maximized(); });
         }
 
-        WINDOWPLACEMENT placement;
-        placement.length = sizeof(WINDOWPLACEMENT);
-
-        GetWindowPlacement(m_impl->hwnd.get(), &placement);
-
-        return placement.showCmd == SW_SHOWMAXIMIZED;
+        return IsZoomed(m_impl->hwnd.get());
     }
 
     bool window::resizable() const
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return resizable(); });
+            return m_parent->dispatch([this] { return resizable(); });
         }
 
-        return GetWindowLongW(m_impl->hwnd.get(), GWL_STYLE) & WS_THICKFRAME;
+        return GetWindowLongPtrW(m_impl->hwnd.get(), GWL_STYLE) & WS_THICKFRAME;
     }
 
     bool window::decorations() const
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return decorations(); });
+            return m_parent->dispatch([this] { return decorations(); });
         }
 
-        return GetWindowLongW(m_impl->hwnd.get(), GWL_STYLE) & WS_CAPTION;
+        return m_impl->decorated;
     }
 
     bool window::always_on_top() const
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return always_on_top(); });
+            return m_parent->dispatch([this] { return always_on_top(); });
         }
 
-        return GetWindowLong(m_impl->hwnd.get(), GWL_EXSTYLE) & WS_EX_TOPMOST;
+        return GetWindowLongPtrW(m_impl->hwnd.get(), GWL_EXSTYLE) & WS_EX_TOPMOST;
+    }
+
+    bool window::click_through() const
+    {
+        if (!m_parent->thread_safe())
+        {
+            return m_parent->dispatch([this] { return click_through(); });
+        }
+
+        return GetWindowLongPtrW(m_impl->hwnd.get(), GWL_EXSTYLE) & WS_EX_TRANSPARENT;
     }
 
     std::string window::title() const
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return title(); });
+            return m_parent->dispatch([this] { return title(); });
         }
 
         std::wstring title;
@@ -148,7 +154,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return size(); });
+            return m_parent->dispatch([this] { return size(); });
         }
 
         RECT rect;
@@ -161,7 +167,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return max_size(); });
+            return m_parent->dispatch([this] { return max_size(); });
         }
 
         const auto width  = GetSystemMetrics(SM_CXMAXTRACK);
@@ -174,7 +180,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return min_size(); });
+            return m_parent->dispatch([this] { return min_size(); });
         }
 
         const auto width  = GetSystemMetrics(SM_CXMINTRACK);
@@ -187,7 +193,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { hide(); });
+            return m_parent->dispatch([this] { hide(); });
         }
 
         ShowWindow(m_impl->hwnd.get(), SW_HIDE);
@@ -197,10 +203,10 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { show(); });
+            return m_parent->dispatch([this] { show(); });
         }
 
-        m_parent->native()->instances[m_impl->hwnd.get()] = true;
+        m_parent->native<false>()->instances[m_impl->hwnd.get()] = true;
         ShowWindow(m_impl->hwnd.get(), SW_SHOW);
     }
 
@@ -208,7 +214,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { close(); });
+            return m_parent->dispatch([this] { close(); });
         }
 
         SendMessage(m_impl->hwnd.get(), WM_CLOSE, 0, 0);
@@ -218,7 +224,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { focus(); });
+            return m_parent->dispatch([this] { focus(); });
         }
 
         SetForegroundWindow(m_impl->hwnd.get());
@@ -231,7 +237,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { start_drag(); });
+            return m_parent->dispatch([this] { start_drag(); });
         }
 
         ReleaseCapture();
@@ -242,7 +248,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, edge] { start_resize(edge); });
+            return m_parent->dispatch([this, edge] { start_resize(edge); });
         }
 
         DWORD translated{};
@@ -288,7 +294,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { set_minimized(enabled); });
+            return m_parent->dispatch([this, enabled] { set_minimized(enabled); });
         }
 
         ShowWindow(m_impl->hwnd.get(), enabled ? SW_MINIMIZE : SW_RESTORE);
@@ -298,7 +304,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { set_maximized(enabled); });
+            return m_parent->dispatch([this, enabled] { set_maximized(enabled); });
         }
 
         ShowWindow(m_impl->hwnd.get(), enabled ? SW_MAXIMIZE : SW_RESTORE);
@@ -308,11 +314,11 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { set_resizable(enabled); });
+            return m_parent->dispatch([this, enabled] { set_resizable(enabled); });
         }
 
         static constexpr auto flags = WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
-        auto current_style          = GetWindowLongW(m_impl->hwnd.get(), GWL_STYLE);
+        auto current_style          = GetWindowLongPtrW(m_impl->hwnd.get(), GWL_STYLE);
 
         if (enabled)
         {
@@ -323,39 +329,61 @@ namespace saucer
             current_style &= ~flags;
         }
 
-        SetWindowLongW(m_impl->hwnd.get(), GWL_STYLE, current_style);
+        SetWindowLongPtrW(m_impl->hwnd.get(), GWL_STYLE, current_style);
     }
 
     void window::set_decorations(bool enabled)
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { set_decorations(enabled); });
+            return m_parent->dispatch([this, enabled] { set_decorations(enabled); });
         }
 
-        static constexpr auto flag = WS_TILEDWINDOW;
-        auto current_style         = GetWindowLongW(m_impl->hwnd.get(), GWL_STYLE);
+        m_impl->decorated = enabled;
 
-        if (enabled)
-        {
-            current_style |= flag;
-        }
-        else
-        {
-            current_style &= ~flag;
-        }
+        utils::extend_frame(m_impl->hwnd.get(), {0, 0, 0, enabled ? 0 : 1});
+        SetWindowPos(m_impl->hwnd.get(), nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
 
-        SetWindowLongW(m_impl->hwnd.get(), GWL_STYLE, current_style);
+        m_events.at<window_event::decorated>().fire(enabled);
     }
 
     void window::set_always_on_top(bool enabled)
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { set_always_on_top(enabled); });
+            return m_parent->dispatch([this, enabled] { set_always_on_top(enabled); });
         }
 
         SetWindowPos(m_impl->hwnd.get(), enabled ? HWND_TOPMOST : HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    }
+
+    void window::set_click_through(bool enabled)
+    {
+        if (!m_parent->thread_safe())
+        {
+            return m_parent->dispatch([this, enabled] { set_click_through(enabled); });
+        }
+
+        static constexpr auto flags = WS_EX_TRANSPARENT | WS_EX_LAYERED;
+        auto current_style          = GetWindowLongPtrW(m_impl->hwnd.get(), GWL_EXSTYLE);
+
+        if (enabled)
+        {
+            current_style |= flags;
+        }
+        else
+        {
+            current_style &= ~flags;
+        }
+
+        SetWindowLongPtrW(m_impl->hwnd.get(), GWL_EXSTYLE, current_style);
+
+        if (!enabled)
+        {
+            return;
+        }
+
+        SetLayeredWindowAttributes(m_impl->hwnd.get(), RGB(255, 255, 255), 255, 0);
     }
 
     void window::set_icon(const icon &icon)
@@ -367,7 +395,7 @@ namespace saucer
 
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, icon] { return set_icon(icon); });
+            return m_parent->dispatch([this, icon] { return set_icon(icon); });
         }
 
         if (icon.m_impl->bitmap->GetHICON(&m_impl->icon.reset()) != Gdiplus::Status::Ok)
@@ -382,7 +410,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, title] { return set_title(title); });
+            return m_parent->dispatch([this, title] { return set_title(title); });
         }
 
         SetWindowTextW(m_impl->hwnd.get(), utils::widen(title).c_str());
@@ -392,7 +420,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { set_size(width, height); });
+            return m_parent->dispatch([this, width, height] { set_size(width, height); });
         }
 
         SetWindowPos(m_impl->hwnd.get(), nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
@@ -402,7 +430,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { set_max_size(width, height); });
+            return m_parent->dispatch([this, width, height] { set_max_size(width, height); });
         }
 
         m_impl->max_size = {width, height};
@@ -412,7 +440,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { set_min_size(width, height); });
+            return m_parent->dispatch([this, width, height] { set_min_size(width, height); });
         }
 
         m_impl->min_size = {width, height};
@@ -440,5 +468,5 @@ namespace saucer
         return m_events.at<Event>().add(std::move(callback));
     }
 
-    INSTANTIATE_EVENTS(window, 7, window_event)
+    SAUCER_INSTANTIATE_EVENTS(7, window, window_event);
 } // namespace saucer

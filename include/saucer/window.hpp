@@ -1,9 +1,10 @@
 #pragma once
 
+#include "utils/required.hpp"
+#include "modules/module.hpp"
+
 #include "app.hpp"
 #include "icon.hpp"
-
-#include "utils/required.hpp"
 
 #include <string>
 #include <memory>
@@ -11,7 +12,6 @@
 #include <set>
 #include <utility>
 
-#include <thread>
 #include <cstdint>
 #include <filesystem>
 
@@ -58,9 +58,6 @@ namespace saucer
         fs::path storage_path;
         std::string user_agent;
         std::set<std::string> browser_flags;
-
-      public:
-        std::size_t threads = std::thread::hardware_concurrency();
     };
 
     struct window
@@ -86,17 +83,17 @@ namespace saucer
         std::shared_ptr<application> m_parent;
 
       protected:
-        template <typename Callback>
-        [[nodiscard]] auto dispatch(Callback &&) const;
-
-      protected:
         window(const preferences &);
 
       public:
         virtual ~window();
 
       public:
-        [[nodiscard]] impl *native() const;
+        template <bool Stable = true>
+        [[nodiscard]] natives<window, Stable> native() const;
+
+      public:
+        [[nodiscard]] application &parent() const;
 
       public:
         [[sc::thread_safe]] [[nodiscard]] bool visible() const;
@@ -109,7 +106,10 @@ namespace saucer
       public:
         [[sc::thread_safe]] [[nodiscard]] bool resizable() const;
         [[sc::thread_safe]] [[nodiscard]] bool decorations() const;
+
+      public:
         [[sc::thread_safe]] [[nodiscard]] bool always_on_top() const;
+        [[sc::thread_safe]] [[nodiscard]] bool click_through() const;
 
       public:
         [[sc::thread_safe]] [[nodiscard]] std::string title() const;
@@ -138,7 +138,10 @@ namespace saucer
       public:
         [[sc::thread_safe]] void set_resizable(bool enabled);
         [[sc::thread_safe]] void set_decorations(bool enabled);
+
+      public:
         [[sc::thread_safe]] void set_always_on_top(bool enabled);
+        [[sc::thread_safe]] void set_click_through(bool enabled);
 
       public:
         [[sc::thread_safe]] void set_icon(const icon &icon);
@@ -160,5 +163,3 @@ namespace saucer
         [[sc::thread_safe]] std::uint64_t on(events::type<Event>);
     };
 } // namespace saucer
-
-#include "window.inl"

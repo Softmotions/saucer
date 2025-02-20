@@ -1,9 +1,7 @@
 #pragma once
 
 #include "webview.hpp"
-
-#include "modules/module.hpp"
-#include "serializers/glaze/glaze.hpp"
+#include "config.hpp"
 
 #include <future>
 #include <atomic>
@@ -11,17 +9,10 @@
 #include <string>
 #include <memory>
 
-#include <tuple>
 #include <string_view>
 
 namespace saucer
 {
-    enum class launch
-    {
-        sync,
-        async,
-    };
-
     class smartview_core : public webview
     {
         struct impl;
@@ -38,15 +29,12 @@ namespace saucer
       public:
         ~smartview_core() override;
 
-      public:
-        [[nodiscard]] saucer::natives natives() const;
-
       protected:
         bool on_message(const std::string &) override;
 
       protected:
-        [[sc::thread_safe]] void call(std::unique_ptr<message_data>);
-        [[sc::thread_safe]] void resolve(std::unique_ptr<message_data>);
+        [[sc::thread_safe]] void call(std::unique_ptr<function_data>);
+        [[sc::thread_safe]] void resolve(std::unique_ptr<result_data>);
 
       protected:
         [[sc::thread_safe]] void add_function(std::string, serializer::function &&, launch);
@@ -61,14 +49,9 @@ namespace saucer
         [[sc::thread_safe]] void clear_exposed(const std::string &name);
     };
 
-    using default_serializer = serializers::glaze::serializer;
-
-    template <Serializer Serializer = default_serializer, Module... Modules>
-    class smartview : public smartview_core
+    template <Serializer Serializer = default_serializer>
+    struct smartview : public smartview_core
     {
-        std::tuple<Modules...> m_modules;
-
-      public:
         smartview(const preferences &);
 
       public:
@@ -82,10 +65,6 @@ namespace saucer
       public:
         template <typename Return, typename... Params>
         [[sc::thread_safe]] [[nodiscard]] std::future<Return> evaluate(std::string_view code, Params &&...params);
-
-      public:
-        template <Module T>
-        auto &module();
     };
 } // namespace saucer
 

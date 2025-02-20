@@ -2,6 +2,7 @@
 
 #include "window.hpp"
 
+#include "handle.hpp"
 #include "gtk.utils.hpp"
 
 #include <optional>
@@ -32,12 +33,16 @@ namespace saucer
 
     struct window::impl
     {
-        utils::custom_ptr<AdwApplicationWindow, gtk_window_destroy> window;
+        utils::handle<GtkWindow *, gtk_window_destroy> window;
         utils::g_object_ptr<GtkCssProvider> style;
 
       public:
         GtkBox *content;
         AdwHeaderBar *header;
+
+      public:
+        GtkEventController *motion_controller;
+        utils::handle<cairo_region_t *, cairo_region_destroy> region;
 
       public:
         std::optional<click_event> prev_click;
@@ -52,6 +57,7 @@ namespace saucer
 
       public:
         void track(saucer::window *) const;
+        void update_region(saucer::window *) const;
         void update_decorations(saucer::window *) const;
     };
 } // namespace saucer

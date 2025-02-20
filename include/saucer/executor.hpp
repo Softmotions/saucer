@@ -5,17 +5,28 @@
 
 namespace saucer
 {
+    namespace impl
+    {
+        template <typename R, typename T>
+        struct fn_with_arg
+        {
+            using type = R(T);
+        };
+
+        template <typename R>
+        struct fn_with_arg<R, void>
+        {
+            using type = R();
+        };
+
+        template <typename R, typename T>
+        using fn_with_arg_t = fn_with_arg<R, T>::type;
+    } // namespace impl
+
     template <typename T, typename E = std::string>
     struct executor
     {
-        std::function<void(T)> resolve;
-        std::function<void(E)> reject;
-    };
-
-    template <typename E>
-    struct executor<void, E>
-    {
-        std::function<void()> resolve;
-        std::function<void(E)> reject;
+        std::function<impl::fn_with_arg_t<void, T>> resolve;
+        std::function<impl::fn_with_arg_t<void, E>> reject;
     };
 } // namespace saucer

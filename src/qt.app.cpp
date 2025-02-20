@@ -4,12 +4,18 @@
 
 namespace saucer
 {
-    application::application(const options &options) : m_impl(std::make_unique<impl>())
+    application::application(const options &opts) : extensible(this), m_pool(opts.threads), m_impl(std::make_unique<impl>())
     {
-        m_impl->id = options.id.value();
+        m_impl->id = opts.id.value();
 
         m_impl->argv = {m_impl->id.data()};
         m_impl->argc = static_cast<int>(m_impl->argv.size());
+
+        if (opts.argc && opts.argv)
+        {
+            m_impl->argc = opts.argc.value();
+            m_impl->argv = {opts.argv.value(), opts.argv.value() + opts.argc.value()};
+        }
 
 #ifndef SAUCER_TESTS
         qputenv("QT_LOGGING_RULES", "*=false");

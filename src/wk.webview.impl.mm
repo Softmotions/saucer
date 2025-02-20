@@ -30,7 +30,7 @@ namespace saucer
             return;
         }
 
-        const objc_ptr<Observer> observer =
+        const utils::objc_ptr<Observer> observer =
             [[Observer alloc] initWithCallback:[self]
                               {
                                   self->m_events.at<web_event::navigated>().fire(self->url());
@@ -60,7 +60,7 @@ namespace saucer
             return;
         }
 
-        const objc_ptr<Observer> observer =
+        const utils::objc_ptr<Observer> observer =
             [[Observer alloc] initWithCallback:[self]
                               {
                                   self->m_events.at<web_event::title>().fire(self->page_title());
@@ -113,7 +113,7 @@ namespace saucer
                             imp_implementationWithBlock(
                                 [mouse_down](SaucerView *view, NSEvent *event)
                                 {
-                                    const autorelease_guard guard{};
+                                    const utils::autorelease_guard guard{};
 
                                     auto &impl = *view->m_parent->window::m_impl;
 
@@ -130,7 +130,7 @@ namespace saucer
                             imp_implementationWithBlock(
                                 [mouse_up](SaucerView *view, NSEvent *event)
                                 {
-                                    const autorelease_guard guard{};
+                                    const utils::autorelease_guard guard{};
 
                                     auto &impl = *view->m_parent->window::m_impl;
                                     impl.edge.reset();
@@ -143,7 +143,7 @@ namespace saucer
                             imp_implementationWithBlock(
                                 [mouse_dragged](SaucerView *view, NSEvent *event)
                                 {
-                                    const autorelease_guard guard{};
+                                    const utils::autorelease_guard guard{};
 
                                     mouse_dragged(view, @selector(mouseDragged:), event);
 
@@ -190,16 +190,36 @@ namespace saucer
 
         class_replaceMethod([MessageHandler class], @selector(userContentController:didReceiveScriptMessage:),
                             imp_implementationWithBlock(
-                                [](MessageHandler *handler, WKUserContentController *, WKScriptMessage *message)
+                                [](MessageHandler *handler, WKUserContentController *, WKScriptMessage *raw)
                                 {
-                                    const id body = message.body;
+                                    const utils::autorelease_guard guard{};
+
+                                    const id body = raw.body;
 
                                     if (![body isKindOfClass:[NSString class]])
                                     {
                                         return;
                                     }
 
-                                    handler->m_parent->on_message(static_cast<NSString *>(body).UTF8String);
+                                    auto message = std::string{static_cast<NSString *>(body).UTF8String};
+                                    auto &self   = *handler->m_parent;
+
+                                    if (message == "dom_loaded")
+                                    {
+                                        self.m_impl->dom_loaded = true;
+
+                                        for (const auto &pending : self.m_impl->pending)
+                                        {
+                                            self.execute(pending);
+                                        }
+
+                                        self.m_impl->pending.clear();
+                                        self.m_events.at<web_event::dom_ready>().fire();
+
+                                        return;
+                                    }
+
+                                    self.on_message(message);
                                 }),
                             "v@:@");
 
@@ -208,7 +228,7 @@ namespace saucer
                                 [](NavigationDelegate *delegate, WKWebView *, WKNavigationAction *action,
                                    void (^decision)(WKNavigationActionPolicy))
                                 {
-                                    const autorelease_guard guard{};
+                                    const utils::autorelease_guard guard{};
 
                                     auto request = navigation{{action}};
 
@@ -239,7 +259,7 @@ namespace saucer
 
     WKWebViewConfiguration *webview::impl::make_config(const preferences &prefs)
     {
-        const autorelease_guard guard{};
+        const utils::autorelease_guard guard{};
 
         static auto resolve = [](id target, NSString *key) -> id
         {
@@ -254,6 +274,7 @@ namespace saucer
         };
 
         auto *const config = [[WKWebViewConfiguration alloc] init];
+        auto *const pool   = [config processPool];
 
         for (const auto &flag : prefs.browser_flags)
         {
@@ -302,9 +323,16 @@ namespace saucer
             [target setValue:[dict objectForKey:@"value"] forKey:selector];
         }
 
+        // https://github.com/WebKit/WebKit/blob/0ba313f0755d90540c9c97a08e481c192f78c295/Source/WebKit/UIProcess/API/Cocoa/WKProcessPool.mm#L219
+
         for (const auto &[name, handler] : schemes)
         {
-            [config setURLSchemeHandler:handler.get() forURLScheme:[NSString stringWithUTF8String:name.c_str()]];
+            auto *const scheme = [NSString stringWithUTF8String:name.c_str()];
+            [config setURLSchemeHandler:handler.get() forURLScheme:scheme];
+
+#ifdef SAUCER_WEBKIT_PRIVATE
+            [pool performSelector:@selector(_registerURLSchemeAsSecure:) withObject:scheme];
+#endif
         }
 
         return config;
@@ -357,7 +385,7 @@ namespace saucer
 
 - (void)willOpenMenu:(NSMenu *)menu withEvent:(NSEvent *)event
 {
-    const saucer::autorelease_guard guard{};
+    const saucer::utils::autorelease_guard guard{};
 
     [super willOpenMenu:menu withEvent:event];
 

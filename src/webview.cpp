@@ -1,24 +1,54 @@
 #include "webview.hpp"
 
+#include "requests.hpp"
+
+#include <algorithm>
+
 #include <fmt/core.h>
 
 namespace saucer
 {
-    webview::impl *webview::native() const
+    bool webview::on_message(const std::string &message)
     {
-        return m_impl.get();
+        if (std::ranges::any_of(modules(), [&message](auto &module) { return module.template invoke<0>(message); }))
+        {
+            return true;
+        }
+
+        auto request = requests::parse(message);
+
+        if (!request)
+        {
+            return false;
+        }
+
+        if (std::holds_alternative<requests::resize>(request.value()))
+        {
+            const auto data = std::get<requests::resize>(request.value());
+            start_resize(static_cast<window_edge>(data.edge));
+
+            return true;
+        }
+
+        if (std::holds_alternative<requests::drag>(request.value()))
+        {
+            start_drag();
+            return true;
+        }
+
+        return false;
     }
 
-    void webview::embed(embedded_files files)
+    void webview::embed(embedded_files files, launch policy)
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, files = std::move(files)]() mutable { return embed(std::move(files)); });
+            return m_parent->dispatch([this, files = std::move(files)]() mutable { return embed(std::move(files)); });
         }
 
         m_embedded_files.merge(std::move(files));
 
-        auto handler = [this](const auto &request) -> scheme::handler::result_type
+        auto func = [this](const auto &request) -> std::expected<scheme::response, scheme::error>
         {
             static constexpr std::string_view prefix = "/embedded/";
 
@@ -46,7 +76,7 @@ namespace saucer
             };
         };
 
-        handle_scheme("saucer", handler);
+        handle_scheme("saucer", func, policy);
     }
 
     void webview::serve(const std::string &file)
@@ -58,7 +88,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return clear_embedded(); });
+            return m_parent->dispatch([this] { return clear_embedded(); });
         }
 
         m_embedded_files.clear();
@@ -69,7 +99,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, file] { return clear_embedded(file); });
+            return m_parent->dispatch([this, file] { return clear_embedded(file); });
         }
 
         m_embedded_files.erase(file);

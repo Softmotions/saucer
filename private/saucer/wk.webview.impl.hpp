@@ -18,14 +18,15 @@ namespace saucer
 {
     struct webview::impl
     {
-        objc_ptr<WKWebViewConfiguration> config;
-        objc_ptr<WKWebView> web_view;
+        utils::objc_ptr<WKWebViewConfiguration> config;
+        utils::objc_ptr<WKWebView> web_view;
 
       public:
-        objc_ptr<NavigationDelegate> delegate;
+        utils::objc_ptr<NSView> view;
+        utils::objc_ptr<NavigationDelegate> delegate;
+
+      public:
         WKUserContentController *controller;
-
-      public:
         NSAppearance *appearance;
 
       public:
@@ -52,7 +53,7 @@ namespace saucer
         static constinit std::string_view ready_script;
 
       public:
-        static inline std::unordered_map<std::string, objc_ptr<SchemeHandler>> schemes;
+        static inline std::unordered_map<std::string, utils::objc_ptr<SchemeHandler>> schemes;
     };
 } // namespace saucer
 

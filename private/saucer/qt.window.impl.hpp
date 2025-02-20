@@ -3,7 +3,6 @@
 #include "window.hpp"
 
 #include <QMainWindow>
-#include <QApplication>
 
 namespace saucer
 {
@@ -20,6 +19,7 @@ namespace saucer
 
       public:
         void set_alpha(std::uint8_t alpha) const;
+        void set_flag(Qt::WindowType flag, bool enabled) const;
     };
 
     class window::impl::main_window : public QMainWindow

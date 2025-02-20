@@ -16,13 +16,38 @@ namespace saucer
 
         const auto &impl = window->m_impl;
 
-        auto original = [&]
-        {
-            return CallWindowProcW(impl->o_wnd_proc, hwnd, msg, w_param, l_param);
-        };
-
         switch (msg)
         {
+        case WM_NCCALCSIZE:
+            if (w_param && !window->m_impl->decorated)
+            {
+                auto *const params = reinterpret_cast<NCCALCSIZE_PARAMS *>(l_param);
+
+                if (!window->maximized() || params->rgrc[0].top >= 0)
+                {
+                    return 0;
+                }
+
+                WINDOWINFO info{};
+                GetWindowInfo(hwnd, &info);
+
+                auto *const rect = reinterpret_cast<RECT *>(l_param);
+
+                rect->top += static_cast<LONG>(info.cyWindowBorders);
+                rect->bottom -= static_cast<LONG>(info.cyWindowBorders);
+
+                rect->left += static_cast<LONG>(info.cxWindowBorders);
+                rect->right -= static_cast<LONG>(info.cxWindowBorders);
+
+                return 0;
+            }
+            break;
+        case WM_NCPAINT:
+            if (!window->m_impl->decorated && window->m_impl->transparent)
+            {
+                return 0;
+            }
+            break;
         case WM_GETMINMAXINFO: {
             auto *info = reinterpret_cast<MINMAXINFO *>(l_param);
 
@@ -74,22 +99,6 @@ namespace saucer
 
             break;
         }
-        case WM_STYLECHANGED: {
-            if (w_param != static_cast<WPARAM>(GWL_STYLE))
-            {
-                break;
-            }
-
-            static constexpr auto flag = WS_CAPTION;
-            auto *const changes        = reinterpret_cast<STYLESTRUCT *>(l_param);
-
-            if ((changes->styleOld & flag) != (changes->styleNew & flag))
-            {
-                window->m_events.at<window_event::decorated>().fire(changes->styleNew & flag);
-            }
-
-            break;
-        }
         case WM_CLOSE: {
             if (window->m_events.at<window_event::close>().until(policy::block))
             {
@@ -101,7 +110,7 @@ namespace saucer
             window->hide();
             window->m_events.at<window_event::closed>().fire();
 
-            auto &instances = parent->native()->instances;
+            auto &instances = parent->native<false>()->instances;
             instances.erase(hwnd);
 
             if (!std::ranges::any_of(instances | std::views::values, std::identity{}))
@@ -113,6 +122,6 @@ namespace saucer
         }
         }
 
-        return original();
+        return CallWindowProcW(impl->o_wnd_proc, hwnd, msg, w_param, l_param);
     }
 } // namespace saucer

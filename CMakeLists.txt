@@ -1,21 +1,25 @@
 cmake_minimum_required(VERSION 3.25)
-project(saucer LANGUAGES CXX VERSION 4.2.0)
+project(saucer LANGUAGES CXX VERSION 6.0.1)
 set(CMAKE_CXX_FLAGS "-stdlib=libc++")
 
 # --------------------------------------------------------------------------------------------------------
 # Library switches
 # --------------------------------------------------------------------------------------------------------
 
-option(saucer_modules           "Enable smartview modules"                          ON)
+option(saucer_static            "Build a static library"                            ON)
+option(saucer_modules           "Enable module support"                             ON)
 
 option(saucer_package_all       "Add all required dependencies to install target"  OFF)
 option(saucer_prefer_remote     "Prefer remote packages over local packages"        ON)
 
 option(saucer_examples          "Build examples"                                   OFF)
+option(saucer_tests             "Build tests"                                      OFF)
+
 option(saucer_msvc_hack         "Fix mutex crashes on mismatching runtimes"        OFF) # See VS2022 17.10 Changelog
+option(saucer_private_webkit    "Enable private api usage for wkwebview"            ON)
 
 option(saucer_no_version_check  "Skip compiler version check"                      OFF)
-option(saucer_tests             "Build tests"                                      OFF)
+option(saucer_no_polyfill       "Disable automatic polyfills"                      OFF)
 
 # --------------------------------------------------------------------------------------------------------
 # Check requirements
@@ -23,20 +27,29 @@ option(saucer_tests             "Build tests"                                   
 #   issues only to find out that their compiler is too old.
 # --------------------------------------------------------------------------------------------------------
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_CXX_COMPILER_VERSION LESS 19.38)
-  set(saucer_cxx_outdated TRUE)
+macro(saucer_mark_outdated)
+  if (${ARGN})
+    set(saucer_cxx_outdated TRUE)
+  else()
+    set(saucer_cxx_outdated FALSE)
+  endif()
+endmacro()
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+  saucer_mark_outdated(CMAKE_CXX_COMPILER_VERSION LESS 19.38)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  saucer_mark_outdated(CMAKE_CXX_COMPILER_VERSION LESS 14)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+  saucer_mark_outdated(CMAKE_CXX_COMPILER_VERSION LESS 17)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  saucer_mark_outdated(CMAKE_CXX_COMPILER_VERSION LESS 18)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+  saucer_mark_outdated(CMAKE_CXX_COMPILER_VERSION LESS 15)
 endif()
 
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION LESS 14)
-  set(saucer_cxx_outdated TRUE)
-endif()
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION LESS 18)
-  set(saucer_cxx_outdated TRUE)
-endif()
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_CXX_COMPILER_VERSION LESS 15)
-  set(saucer_cxx_outdated TRUE)
+if (WIN32 AND MINGW)
+  message(WARNING "[saucer] WebView2 requires certain headers that are not provided by MinGW!")
+  message(WARNING "[saucer] Expect to run into issues...")
 endif()
 
 if (NOT saucer_no_version_check AND saucer_cxx_outdated)
@@ -47,12 +60,18 @@ endif()
 # Library options
 # --------------------------------------------------------------------------------------------------------
 
-set(saucer_webview2_version "1.0.2592.51"   CACHE STRING "The WebView2 version to use (Ignored when using offline packages)")
+set(saucer_webview2_version "1.0.2903.40"   CACHE STRING "The WebView2 version to use (Ignored when using offline packages)")
 set(saucer_backend          "Default"       CACHE STRING "The backend to use, will use the most appropiate one for the current platform by default")
+set(saucer_serializer       "Glaze"         CACHE STRING "The built-in serializer to use for e.g. request parsing. Also used as the default smartview serializer")
 
 # --------------------------------------------------------------------------------------------------------
 # Set "saucer_prefer_remote" and "CPM_USE_LOCAL_PACKAGES" to equal values
 # --------------------------------------------------------------------------------------------------------
+
+if (saucer_package_all AND NOT saucer_prefer_remote)
+  message(WARNING "[saucer] Cannot use 'saucer_package_all' without 'saucer_prefer_remote'")
+  set(saucer_prefer_remote ON)
+endif()
 
 if (saucer_prefer_remote)
   message(STATUS "[saucer] Avoiding local packages as 'saucer_prefer_remote' is ON")
@@ -79,6 +98,13 @@ if (NOT saucer_backend IN_LIST saucer_valid_backends)
   message(FATAL_ERROR "Bad Backend, expected one of ${saucer_valid_backends}")
 endif()
 
+set(saucer_valid_serializers Glaze Rflpp None)
+set_property(CACHE saucer_serializer PROPERTY STRINGS ${saucer_valid_serializers})
+
+if (NOT saucer_serializer IN_LIST saucer_valid_serializers)
+  message(FATAL_ERROR "Bad Serializer, expected one of ${saucer_valid_serializers}")
+endif()
+
 # --------------------------------------------------------------------------------------------------------
 # Determine appropiate default backend
 # --------------------------------------------------------------------------------------------------------
@@ -99,19 +125,27 @@ endif()
 # Setup Library
 # --------------------------------------------------------------------------------------------------------
 
-add_library(${PROJECT_NAME} STATIC)
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS saucer)
+if (saucer_static)
+  add_library(${PROJECT_NAME} STATIC)
+else()
+  add_library(${PROJECT_NAME} SHARED)
+endif()
 
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_23)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_23)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23 CXX_EXTENSIONS OFF CXX_STANDARD_REQUIRED ON)
-  
-if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+
+if (PROJECT_IS_TOP_LEVEL AND NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT MATCHES "MSVC")
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror -pedantic -pedantic-errors -Wfatal-errors)
 endif()
 
-if (NOT CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+if (NOT CMAKE_CXX_COMPILER_FRONTEND_VARIANT MATCHES "MSVC")
   target_compile_options(${PROJECT_NAME} PRIVATE -Wno-unknown-warning-option -Wno-missing-field-initializers -Wno-cast-function-type)
 endif()
+
+# We are not using `CMAKE_CXX_COMPILER_FRONTEND_VARIANT` here because ClangCL behaves kind of weird
+# and expects flags to disable warnings in GNU fashion regardless of whether it is in MSVC- or GNU-CLI mode
 
 if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   target_compile_options(${PROJECT_NAME} PUBLIC -Wno-attributes=sc::)
@@ -137,11 +171,11 @@ endif()
 # Include directories
 # --------------------------------------------------------------------------------------------------------
 
-target_include_directories(${PROJECT_NAME} PUBLIC            "include")
-target_include_directories(${PROJECT_NAME} ${saucer_linkage} "private")
+target_include_directories(${PROJECT_NAME} PUBLIC  "include")
+target_include_directories(${PROJECT_NAME} PRIVATE "private")
 
-target_include_directories(${PROJECT_NAME} PRIVATE           "private/saucer")
-target_include_directories(${PROJECT_NAME} PRIVATE           "include/saucer")
+target_include_directories(${PROJECT_NAME} PRIVATE "private/saucer")
+target_include_directories(${PROJECT_NAME} PRIVATE "include/saucer")
 
 # --------------------------------------------------------------------------------------------------------
 # Setup feature macros
@@ -151,9 +185,20 @@ if (saucer_tests)
   target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_TESTS)
 endif()
 
-if (saucer_backend MATCHES "^Qt.$")
-  string(REGEX REPLACE "[a-zA-Z]+" "" QT_VERSION "${saucer_backend}")
-  target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_QT${QT_VERSION})
+if (saucer_private_webkit)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_WEBKIT_PRIVATE)
+endif()
+
+if (saucer_backend STREQUAL "Qt5")
+  set(QT_VERSION 5)
+  set(QT_REQUIRED_VERSION 5.0.0)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_QT5)
+endif()
+
+if (saucer_backend STREQUAL "Qt6")
+  set(QT_VERSION 6)
+  set(QT_REQUIRED_VERSION 6.7.0)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC SAUCER_QT6)
 endif()
 
 if (saucer_backend STREQUAL "WebKitGtk")
@@ -173,14 +218,12 @@ endif()
 # --------------------------------------------------------------------------------------------------------
 
 target_sources(${PROJECT_NAME} PRIVATE 
-    "src/app.cpp"
+    "src/module/unstable.cpp"
     
+    "src/app.cpp"
     "src/window.cpp"
     "src/webview.cpp"
     "src/smartview.cpp"
-    
-    "src/requests.cpp"
-    "src/serializer.glaze.cpp"
 )
 
 # --------------------------------------------------------------------------------------------------------
@@ -195,39 +238,36 @@ include("cmake/cpm.cmake")
 include("cmake/polyfill.cmake")
 
 check_features()
-set(saucer_fmt_install ON)
 
-if (saucer_polyfill_thread)
+if (NOT saucer_no_polyfill AND saucer_polyfill_thread)
   message(STATUS "[saucer] Using std::jthread polyfill")
 
   CPMFindPackage(
     NAME           jthread
-    VERSION        24.00.0
+    VERSION        24.00.1
     GIT_REPOSITORY "https://github.com/saucer/jthread"
   )
 
   install(DIRECTORY "$<TARGET_PROPERTY:nonstd::jthread,INTERFACE_INCLUDE_DIRECTORIES>" TYPE INCLUDE)
-  link_libraries(nonstd::jthread)
   target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/jthread.hpp")
-  set(saucer_fmt_install OFF)
+  target_link_libraries(${PROJECT_NAME} PUBLIC nonstd::jthread)
 endif()
 
-if (saucer_polyfill_functional)
+if (NOT saucer_no_polyfill AND saucer_polyfill_functional)
   message(STATUS "[saucer] Using std::move_only_function polyfill")
 
   CPMFindPackage(
     NAME           fu2
-    VERSION        4.2.2
+    VERSION        4.2.3
     GIT_REPOSITORY "https://github.com/saucer/function2"
   )
 
   install(DIRECTORY "$<TARGET_PROPERTY:function2::function2,INTERFACE_INCLUDE_DIRECTORIES>/function2" TYPE INCLUDE)
-  link_libraries(function2::function2)
   target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/functional.hpp")
-  set(saucer_fmt_install OFF)
+  target_link_libraries(${PROJECT_NAME} PUBLIC function2::function2)
 endif()
 
-if (saucer_polyfill_expected)
+if (NOT saucer_no_polyfill AND saucer_polyfill_expected)
   message(STATUS "[saucer] Using std::expected polyfill")
 
   CPMFindPackage(
@@ -238,9 +278,8 @@ if (saucer_polyfill_expected)
     EXCLUDE_FROM_ALL ON
   )
 
-  link_libraries(tl::expected)
   target_precompile_headers(${PROJECT_NAME} PRIVATE "include/polyfill/expected.hpp")
-  set(saucer_fmt_install OFF)
+  target_link_libraries(${PROJECT_NAME} PUBLIC tl::expected)
 endif()
 
 # --------------------------------------------------------------------------------------------------------
@@ -248,6 +287,7 @@ endif()
 # --------------------------------------------------------------------------------------------------------
 
 include("cmake/nuget.cmake")
+include("cmake/module.cmake")
 
 CPMFindPackage(
   NAME           lockpp
@@ -257,7 +297,7 @@ CPMFindPackage(
 
 CPMFindPackage(
   NAME           boost_callable_traits
-  GIT_TAG        boost-1.86.0
+  GIT_TAG        boost-1.87.0
   GIT_REPOSITORY "https://github.com/boostorg/callable_traits"
 )
 
@@ -269,15 +309,8 @@ CPMFindPackage(
 
 CPMFindPackage(
   NAME           fmt
-  GIT_TAG        11.0.2
+  GIT_TAG        11.1.1
   GIT_REPOSITORY "https://github.com/fmtlib/fmt"
-  OPTIONS        "FMT_INSTALL ${saucer_fmt_install}"
-)
-
-CPMFindPackage(
-  NAME           glaze
-  VERSION        4.0.0
-  GIT_REPOSITORY "https://github.com/stephenberry/glaze"
 )
 
 CPMFindPackage(
@@ -288,31 +321,37 @@ CPMFindPackage(
 
 CPMFindPackage(
   NAME           rebind
-  VERSION        3.0.0
+  VERSION        5.1.1
   GIT_REPOSITORY "https://github.com/Curve/rebind"
 )
 
 CPMFindPackage(
   NAME           poolparty
-  VERSION        3.0.0
+  VERSION        3.0.1
   GIT_REPOSITORY "https://github.com/Curve/poolparty"
 )
 
 CPMFindPackage(
+  NAME           eraser
+  VERSION        2.2.1
+  GIT_REPOSITORY "https://github.com/Curve/eraser"
+)
+
+CPMFindPackage(
   NAME           boost_preprocessor
-  GIT_TAG        boost-1.86.0
+  GIT_TAG        boost-1.87.0
   GIT_REPOSITORY "https://github.com/boostorg/preprocessor"
 )
 
-target_link_libraries(${PROJECT_NAME} PRIVATE boost_preprocessor cr::lockpp cr::flagpp)
-target_link_libraries(${PROJECT_NAME} PUBLIC  boost_callable_traits glaze::glaze cr::ereignis fmt::fmt cr::rebind cr::poolparty)
+target_link_libraries(${PROJECT_NAME} ${saucer_linkage} boost_preprocessor cr::lockpp cr::flagpp)
+target_link_libraries(${PROJECT_NAME} PUBLIC            boost_callable_traits cr::ereignis fmt::fmt cr::rebind cr::poolparty cr::eraser)
 
 # --------------------------------------------------------------------------------------------------------
 # Setup Backends
 # --------------------------------------------------------------------------------------------------------
 
 if (saucer_backend MATCHES "^Qt.$")
-  file(GLOB qt_sources 
+  file(GLOB_RECURSE qt_sources 
     "src/qt.*cpp"
     "private/saucer/qt.*hpp"
     "src/qt${QT_VERSION}.*cpp"
@@ -321,14 +360,14 @@ if (saucer_backend MATCHES "^Qt.$")
   target_sources(${PROJECT_NAME} PRIVATE ${qt_sources})
   set_target_properties(${PROJECT_NAME} PROPERTIES AUTOMOC ON)
 
-  find_package(Qt${QT_VERSION} COMPONENTS Widgets WebEngineWidgets WebChannel REQUIRED)
+  find_package(Qt${QT_VERSION} ${QT_REQUIRED_VERSION} COMPONENTS Widgets WebEngineWidgets WebChannel REQUIRED)
   target_link_libraries(${PROJECT_NAME} ${saucer_linkage} Qt${QT_VERSION}::Widgets Qt${QT_VERSION}::WebChannel Qt${QT_VERSION}::WebEngineWidgets)
 endif()
 
 if (saucer_backend STREQUAL "WebKit")
   enable_language(OBJCXX)
 
-  file(GLOB cocoa_sources 
+  file(GLOB_RECURSE cocoa_sources 
     "src/cocoa.*mm"
     "src/wk.*mm"
   )
@@ -343,7 +382,7 @@ if (saucer_backend STREQUAL "WebKit")
 endif()
 
 if (saucer_backend STREQUAL "WebKitGtk")
-  file(GLOB gtk_sources 
+  file(GLOB_RECURSE gtk_sources 
     "src/gtk.*cpp"
     "src/wkg.*cpp"
   )
@@ -352,6 +391,7 @@ if (saucer_backend STREQUAL "WebKitGtk")
 
   find_package(PkgConfig REQUIRED)
 
+  pkg_check_modules(gtk        REQUIRED gtk4>=4.10)
   pkg_check_modules(libadwaita REQUIRED IMPORTED_TARGET libadwaita-1)
   pkg_check_modules(webkitgtk  REQUIRED IMPORTED_TARGET webkitgtk-6.0)
 
@@ -359,7 +399,7 @@ if (saucer_backend STREQUAL "WebKitGtk")
 endif()
 
 if (saucer_backend STREQUAL "WebView2")
-  file(GLOB win_sources 
+  file(GLOB_RECURSE win_sources 
     "src/win32.*cpp"
     "src/wv2.*cpp"
   )
@@ -370,6 +410,62 @@ if (saucer_backend STREQUAL "WebView2")
   include("cmake/webview2.cmake")
   target_link_libraries(${PROJECT_NAME} ${saucer_linkage} Shlwapi gdiplus webview2::webview2)
 endif()
+
+# --------------------------------------------------------------------------------------------------------
+# Setup Serializers
+# --------------------------------------------------------------------------------------------------------
+
+if (saucer_serializer STREQUAL "Glaze")
+  file(GLOB_RECURSE glaze_sources 
+    "src/glaze.*cpp"
+  )
+
+  target_sources(${PROJECT_NAME} PRIVATE ${glaze_sources})
+
+  CPMFindPackage(
+    NAME           glaze
+    VERSION        4.2.4
+    GIT_REPOSITORY "https://github.com/stephenberry/glaze"
+  )
+
+  target_link_libraries(${PROJECT_NAME} PUBLIC glaze::glaze)
+endif()
+
+if (saucer_serializer STREQUAL "Rflpp")
+  file(GLOB_RECURSE rflpp_sources 
+    "src/rfl.*cpp"
+  )
+
+  target_sources(${PROJECT_NAME} PRIVATE ${rflpp_sources})
+
+  CPMFindPackage(
+    NAME           reflectcpp
+    VERSION        0.16.0
+    GIT_REPOSITORY "https://github.com/getml/reflect-cpp"
+    SYSTEM         ON
+  )
+
+  target_link_libraries(${PROJECT_NAME} PUBLIC reflectcpp)
+endif()
+
+# --------------------------------------------------------------------------------------------------------
+# Configure Config
+# --------------------------------------------------------------------------------------------------------
+
+function(configure_config)
+  string(TOLOWER ${saucer_serializer} SERIALIZER)
+
+  if (NOT saucer_serializer STREQUAL "None")
+    set(INCLUDE_SERIALIZER "#include \"serializers/${SERIALIZER}/${SERIALIZER}.hpp\"")
+    set(DEFAULT_SERIALIZER "serializers::${SERIALIZER}::serializer")
+  else()
+    set(DEFAULT_SERIALIZER "void")
+  endif()
+
+  configure_file("config/config.hpp.in" "${CMAKE_CURRENT_SOURCE_DIR}/include/saucer/config.hpp")
+endfunction()
+
+configure_config()
 
 # --------------------------------------------------------------------------------------------------------
 # Setup Tests
@@ -388,6 +484,8 @@ if (saucer_examples)
   message(STATUS "[saucer] Building Examples")
   add_subdirectory("examples/json-bridge")
   add_subdirectory("examples/embedding")
+  add_subdirectory("examples/desktop")
+  add_subdirectory("examples/pdf")
 endif()
 
 # --------------------------------------------------------------------------------------------------------
@@ -403,13 +501,19 @@ install(TARGETS ${PROJECT_NAME}
         RUNTIME DESTINATION bin
 )
 
-if (saucer_prefer_remote AND saucer_backend STREQUAL "WebView2")
+install(DIRECTORY "include/saucer" TYPE INCLUDE)
+
+if (NOT saucer_package_all)
+    return()
+endif()
+
+if (saucer_backend STREQUAL "WebView2")
   install(FILES ${webview2_lib_path} DESTINATION lib)
 endif()
 
-install(DIRECTORY "include/saucer" TYPE INCLUDE)
-#if(saucer_fmt_install)
-#  install(DIRECTORY "$<TARGET_PROPERTY:fmt,INTERFACE_INCLUDE_DIRECTORIES>/fmt" TYPE INCLUDE)
-#endif()
 install(DIRECTORY "$<TARGET_PROPERTY:glaze_glaze,INTERFACE_INCLUDE_DIRECTORIES>/glaze" TYPE INCLUDE)
+if (saucer_polyfill_expected)
+    install(DIRECTORY "$<TARGET_PROPERTY:expected,INTERFACE_INCLUDE_DIRECTORIES>/tl" TYPE INCLUDE)
+endif()
+
 install(DIRECTORY "$<TARGET_PROPERTY:boost_callable_traits,INTERFACE_INCLUDE_DIRECTORIES>/boost" TYPE INCLUDE)

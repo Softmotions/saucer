@@ -4,21 +4,25 @@ namespace saucer::scheme
 {
     request::request(impl data) : m_impl(std::make_unique<impl>(std::move(data))) {}
 
+    request::request(const request &other) : m_impl(std::make_unique<impl>(*other.m_impl)) {}
+
+    request::request(request &&other) noexcept : m_impl(std::move(other.m_impl)) {}
+
     request::~request() = default;
 
     std::string request::url() const
     {
-        return m_impl->task.request.URL.absoluteString.UTF8String;
+        return m_impl->task.get().request.URL.absoluteString.UTF8String;
     }
 
     std::string request::method() const
     {
-        return m_impl->task.request.HTTPMethod.UTF8String;
+        return m_impl->task.get().request.HTTPMethod.UTF8String;
     }
 
     stash<> request::content() const
     {
-        auto *const body = m_impl->task.request.HTTPBody;
+        auto *const body = m_impl->task.get().request.HTTPBody;
 
         if (!body)
         {
@@ -31,7 +35,7 @@ namespace saucer::scheme
 
     std::map<std::string, std::string> request::headers() const
     {
-        auto *const headers = m_impl->task.request.allHTTPHeaderFields;
+        auto *const headers = m_impl->task.get().request.allHTTPHeaderFields;
 
         std::map<std::string, std::string> rtn;
 

@@ -7,7 +7,7 @@ on:
         type: boolean
         description: Enable Debugging
 
-name: 🧪 Tests
+name: 🛸 Test & Build
 
 jobs:
   run-tests:
@@ -20,6 +20,7 @@ jobs:
           - Qt6
           - WebKitGtk
           - WebKit
+          - WebView2
 
         config:
           - Release
@@ -45,6 +46,12 @@ jobs:
             platform: MacOS
             os: macos-latest
 
+          - backend: WebView2
+            platform: Windows
+            os: windows-latest
+            install: "true"
+            cmake-args: "-Dsaucer_package_all=ON -Dsaucer_serializer=Rflpp"
+
     name: ${{ matrix.backend }}-${{ matrix.config }}
 
     runs-on: ${{ matrix.os }}
@@ -54,13 +61,14 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: 🛸 Setup Saucer
+      - name: 👽 Setup Saucer
         uses: ./.github/actions/setup
         with:
           backend: ${{ matrix.backend }}
           platform: ${{ matrix.platform }}
           build-type: ${{ matrix.config }}
-          cmake-args: -Dsaucer_tests=ON
+          cmake-args: -Dsaucer_tests=ON -Dsaucer_examples=ON ${{ matrix.cmake-args }}
+          install: ${{ matrix.install }}
 
       - name: 🐛 Debug
         if: ${{ github.event.inputs.debug == 'true' }}
@@ -72,4 +80,11 @@ jobs:
       - name: 🧪 Test
         timeout-minutes: 10
         uses: ./.github/actions/test
-        if: ${{ matrix.backend != 'WebKitGtk' && matrix.backend != 'WebKit' }}
+        if: ${{ matrix.backend != 'WebKitGtk' && matrix.backend != 'WebKit' && matrix.backend != 'WebView2' }}
+
+      - name: 📦 Upload Artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ matrix.install == 'true' }}
+        with:
+          name: ${{ matrix.backend }}-${{ matrix.config }}
+          path: artifact

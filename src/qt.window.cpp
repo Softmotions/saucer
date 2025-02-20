@@ -5,9 +5,10 @@
 
 #include <cassert>
 
+#include <flagpp/flags.hpp>
+
 #include <fmt/core.h>
 #include <fmt/xchar.h>
-#include <flagpp/flags.hpp>
 
 #include <QWindow>
 
@@ -40,7 +41,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return visible(); });
+            return m_parent->dispatch([this] { return visible(); });
         }
 
         return m_impl->window->isVisible();
@@ -50,7 +51,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return focused(); });
+            return m_parent->dispatch([this] { return focused(); });
         }
 
         return m_impl->window->isActiveWindow();
@@ -60,7 +61,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return minimized(); });
+            return m_parent->dispatch([this] { return minimized(); });
         }
 
         return m_impl->window->isMinimized();
@@ -70,7 +71,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return maximized(); });
+            return m_parent->dispatch([this] { return maximized(); });
         }
 
         return m_impl->window->isMaximized();
@@ -80,7 +81,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return resizable(); });
+            return m_parent->dispatch([this] { return resizable(); });
         }
 
         return m_impl->window->maximumSize() != m_impl->window->minimumSize();
@@ -90,7 +91,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return decorations(); });
+            return m_parent->dispatch([this] { return decorations(); });
         }
 
         return !m_impl->window->windowFlags().testFlag(Qt::FramelessWindowHint);
@@ -100,7 +101,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return title(); });
+            return m_parent->dispatch([this] { return title(); });
         }
 
         return m_impl->window->windowTitle().toStdString();
@@ -110,17 +111,27 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return always_on_top(); });
+            return m_parent->dispatch([this] { return always_on_top(); });
         }
 
         return m_impl->window->windowFlags().testFlag(Qt::WindowStaysOnTopHint);
+    }
+
+    bool window::click_through() const
+    {
+        if (!m_parent->thread_safe())
+        {
+            return m_parent->dispatch([this] { return click_through(); });
+        }
+
+        return m_impl->window->windowFlags().testFlag(Qt::WindowTransparentForInput);
     }
 
     std::pair<int, int> window::size() const
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return size(); });
+            return m_parent->dispatch([this] { return size(); });
         }
 
         return {m_impl->window->width(), m_impl->window->height()};
@@ -130,7 +141,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return max_size(); });
+            return m_parent->dispatch([this] { return max_size(); });
         }
 
         return {m_impl->window->maximumWidth(), m_impl->window->maximumHeight()};
@@ -140,7 +151,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return min_size(); });
+            return m_parent->dispatch([this] { return min_size(); });
         }
 
         return {m_impl->window->minimumWidth(), m_impl->window->minimumHeight()};
@@ -150,7 +161,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return hide(); });
+            return m_parent->dispatch([this] { return hide(); });
         }
 
         m_impl->window->hide();
@@ -160,7 +171,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return show(); });
+            return m_parent->dispatch([this] { return show(); });
         }
 
         m_impl->window->show();
@@ -170,7 +181,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return close(); });
+            return m_parent->dispatch([this] { return close(); });
         }
 
         m_impl->window->close();
@@ -180,7 +191,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return focus(); });
+            return m_parent->dispatch([this] { return focus(); });
         }
 
         m_impl->window->activateWindow();
@@ -190,7 +201,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this] { return start_drag(); });
+            return m_parent->dispatch([this] { return start_drag(); });
         }
 
         m_impl->window->windowHandle()->startSystemMove();
@@ -200,7 +211,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, edge] { return start_resize(edge); });
+            return m_parent->dispatch([this, edge] { return start_resize(edge); });
         }
 
         Qt::Edges translated;
@@ -229,7 +240,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { return set_minimized(enabled); });
+            return m_parent->dispatch([this, enabled] { return set_minimized(enabled); });
         }
 
         auto state = m_impl->window->windowState();
@@ -251,7 +262,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { return set_maximized(enabled); });
+            return m_parent->dispatch([this, enabled] { return set_maximized(enabled); });
         }
 
         auto state = m_impl->window->windowState();
@@ -272,7 +283,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { return set_resizable(enabled); });
+            return m_parent->dispatch([this, enabled] { return set_resizable(enabled); });
         }
 
         if (!enabled)
@@ -289,20 +300,30 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { return set_decorations(enabled); });
+            return m_parent->dispatch([this, enabled] { return set_decorations(enabled); });
         }
 
-        m_impl->window->setWindowFlag(Qt::FramelessWindowHint, !enabled);
+        m_impl->set_flag(Qt::FramelessWindowHint, !enabled);
     }
 
     void window::set_always_on_top(bool enabled)
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, enabled] { return set_always_on_top(enabled); });
+            return m_parent->dispatch([this, enabled] { return set_always_on_top(enabled); });
         }
 
-        m_impl->window->setWindowFlag(Qt::WindowStaysOnTopHint, enabled);
+        m_impl->set_flag(Qt::WindowStaysOnTopHint, enabled);
+    }
+
+    void window::set_click_through(bool enabled)
+    {
+        if (!m_parent->thread_safe())
+        {
+            return m_parent->dispatch([this, enabled] { return set_click_through(enabled); });
+        }
+
+        m_impl->set_flag(Qt::WindowTransparentForInput, enabled);
     }
 
     void window::set_icon(const icon &icon)
@@ -314,7 +335,7 @@ namespace saucer
 
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, icon] { return set_icon(icon); });
+            return m_parent->dispatch([this, icon] { return set_icon(icon); });
         }
 
         m_impl->window->setWindowIcon(icon.m_impl->icon);
@@ -324,7 +345,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, title] { return set_title(title); });
+            return m_parent->dispatch([this, title] { return set_title(title); });
         }
 
         m_impl->window->setWindowTitle(QString::fromStdString(title));
@@ -334,7 +355,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { return set_size(width, height); });
+            return m_parent->dispatch([this, width, height] { return set_size(width, height); });
         }
 
         m_impl->window->resize(width, height);
@@ -344,7 +365,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { return set_max_size(width, height); });
+            return m_parent->dispatch([this, width, height] { return set_max_size(width, height); });
         }
 
         m_impl->window->setMaximumSize(width, height);
@@ -355,7 +376,7 @@ namespace saucer
     {
         if (!m_parent->thread_safe())
         {
-            return dispatch([this, width, height] { return set_min_size(width, height); });
+            return m_parent->dispatch([this, width, height] { return set_min_size(width, height); });
         }
 
         m_impl->window->setMinimumSize(width, height);
@@ -384,5 +405,5 @@ namespace saucer
         return m_events.at<Event>().add(std::move(callback));
     }
 
-    INSTANTIATE_EVENTS(window, 7, window_event)
+    SAUCER_INSTANTIATE_EVENTS(7, window, window_event);
 } // namespace saucer

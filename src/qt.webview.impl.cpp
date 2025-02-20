@@ -55,9 +55,27 @@ namespace saucer
 
     webview::impl::web_class::web_class(webview *parent) : m_parent(parent) {}
 
-    void webview::impl::web_class::on_message(const QString &message)
+    void webview::impl::web_class::on_message(const QString &raw)
     {
-        m_parent->on_message(message.toStdString());
+        auto message = raw.toStdString();
+        auto &self   = *m_parent;
+
+        if (message == "dom_loaded")
+        {
+            self.m_impl->dom_loaded = true;
+
+            for (const auto &pending : self.m_impl->pending)
+            {
+                self.execute(pending);
+            }
+
+            self.m_impl->pending.clear();
+            self.m_events.at<web_event::dom_ready>().fire();
+
+            return;
+        }
+
+        self.on_message(message);
     }
 
     template <>
@@ -92,7 +110,7 @@ namespace saucer
     template <>
     void webview::impl::setup<web_event::navigate>([[maybe_unused]] webview *self)
     {
-#if QT_VERSION >= QT_VERSION_CHECK(6, 2, 0)
+#ifdef SAUCER_QT6
         auto &event = self->m_events.at<web_event::navigate>();
 
         if (!event.empty())

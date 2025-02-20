@@ -2,8 +2,8 @@
 
 namespace saucer
 {
-    window::impl *window::native() const
+    application &window::parent() const
     {
-        return m_impl.get();
+        return *m_parent;
     }
 } // namespace saucer

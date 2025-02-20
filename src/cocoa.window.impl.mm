@@ -66,7 +66,7 @@ namespace saucer
                                     self->hide();
                                     self->m_events.at<window_event::closed>().fire();
 
-                                    auto &instances = parent->native()->instances;
+                                    auto &instances = parent->native<false>()->instances;
                                     instances.erase(identifier);
 
                                     if (!std::ranges::any_of(instances | std::views::values, std::identity{}))
@@ -89,7 +89,7 @@ namespace saucer
             return;
         }
 
-        const objc_ptr<Observer> observer =
+        const utils::objc_ptr<Observer> observer =
             [[Observer alloc] initWithCallback:[self]
                               {
                                   self->m_events.at<window_event::decorated>().fire(self->decorations());
@@ -109,7 +109,7 @@ namespace saucer
             return;
         }
 
-        const objc_ptr<Observer> observer =
+        const utils::objc_ptr<Observer> observer =
             [[Observer alloc] initWithCallback:[self]
                               {
                                   self->m_events.at<window_event::maximize>().fire(self->maximized());
@@ -146,7 +146,7 @@ namespace saucer
 
     void saucer::window::impl::set_alpha(std::uint8_t alpha) const
     {
-        const autorelease_guard guard{};
+        const utils::autorelease_guard guard{};
 
         auto *const background = window.backgroundColor;
         auto *const color      = [background colorWithAlphaComponent:static_cast<float>(alpha) / 255.f];

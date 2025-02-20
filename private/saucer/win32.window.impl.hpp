@@ -4,6 +4,7 @@
 
 #include "win32.utils.hpp"
 
+#include <utility>
 #include <optional>
 
 #include <windows.h>
@@ -12,11 +13,17 @@ namespace saucer
 {
     struct window::impl
     {
-        utils::win_handle<HWND, DestroyWindow> hwnd;
+        utils::window_handle hwnd;
 
       public:
         UINT prev_state;
-        utils::win_handle<HICON, DestroyIcon> icon;
+
+      public:
+        bool decorated{true};
+        bool transparent{false};
+
+      public:
+        utils::handle<HICON, DestroyIcon> icon;
         std::optional<std::pair<int, int>> max_size, min_size;
 
       public:
