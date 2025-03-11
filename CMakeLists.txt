@@ -29,6 +29,12 @@ option(saucer_disable_simd      "Disable simd optimizations when supported (AVX2
 #   issues only to find out that their compiler is too old.
 # --------------------------------------------------------------------------------------------------------
 
+if (saucer_disable_simd) 
+  set(saucer_enable_simd OFF)
+else()
+  set(saucer_enable_simd ON)
+endif()
+
 macro(saucer_mark_outdated)
   if (${ARGN})
     set(saucer_cxx_outdated TRUE)
@@ -429,6 +435,7 @@ if (saucer_serializer STREQUAL "Glaze")
     VERSION        4.2.4
     GIT_REPOSITORY "https://github.com/stephenberry/glaze"
     OPTIONS "glaze_DISABLE_SIMD_WHEN_SUPPORTED ${saucer_disable_simd}"
+            "glaze_ENABLE_AVX2 ${saucer_enable_simd}"
   )
 
   target_link_libraries(${PROJECT_NAME} PUBLIC glaze::glaze)
