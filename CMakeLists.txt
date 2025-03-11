@@ -21,6 +21,8 @@ option(saucer_private_webkit    "Enable private api usage for wkwebview"        
 option(saucer_no_version_check  "Skip compiler version check"                      OFF)
 option(saucer_no_polyfill       "Disable automatic polyfills"                      OFF)
 
+option(saucer_disable_simd      "Disable simd optimizations when supported (AVX2,..)" OFF)
+
 # --------------------------------------------------------------------------------------------------------
 # Check requirements
 # └ The main use case of this check is to prevent users from reporting
@@ -426,6 +428,7 @@ if (saucer_serializer STREQUAL "Glaze")
     NAME           glaze
     VERSION        4.2.4
     GIT_REPOSITORY "https://github.com/stephenberry/glaze"
+    OPTIONS "glaze_DISABLE_SIMD_WHEN_SUPPORTED ${saucer_disable_simd}"
   )
 
   target_link_libraries(${PROJECT_NAME} PUBLIC glaze::glaze)
