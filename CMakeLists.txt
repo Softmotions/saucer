@@ -253,6 +253,7 @@ if (NOT saucer_no_polyfill AND saucer_polyfill_thread)
   CPMFindPackage(
     NAME           jthread
     VERSION        24.00.1
+    GIT_SHALLOW TRUE
     GIT_REPOSITORY "https://github.com/saucer/jthread"
   )
 
@@ -267,6 +268,7 @@ if (NOT saucer_no_polyfill AND saucer_polyfill_functional)
   CPMFindPackage(
     NAME           fu2
     VERSION        4.2.3
+    GIT_SHALLOW TRUE
     GIT_REPOSITORY "https://github.com/saucer/function2"
   )
 
@@ -281,6 +283,7 @@ if (NOT saucer_no_polyfill AND saucer_polyfill_expected)
   CPMFindPackage(
     NAME             tl-expected
     VERSION          1.1.0
+    GIT_SHALLOW TRUE
     GIT_REPOSITORY   "https://github.com/TartanLlama/expected"
     OPTIONS          "EXPECTED_BUILD_TESTS OFF"
     EXCLUDE_FROM_ALL ON
@@ -300,54 +303,63 @@ include("cmake/module.cmake")
 CPMFindPackage(
   NAME           lockpp
   VERSION        3.0
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Curve/lockpp"
 )
 
 CPMFindPackage(
   NAME           boost_callable_traits
   GIT_TAG        boost-1.87.0
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/boostorg/callable_traits"
 )
 
 CPMFindPackage(
   NAME           ereignis
   VERSION        4.3
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Soundux/ereignis"
 )
 
 CPMFindPackage(
   NAME           fmt
   GIT_TAG        11.1.1
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/fmtlib/fmt"
 )
 
 CPMFindPackage(
   NAME           flagpp
   VERSION        3.0
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Curve/flagpp"
 )
 
 CPMFindPackage(
   NAME           rebind
   VERSION        5.1.1
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Curve/rebind"
 )
 
 CPMFindPackage(
   NAME           poolparty
   VERSION        3.0.1
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Curve/poolparty"
 )
 
 CPMFindPackage(
   NAME           eraser
   VERSION        2.2.1
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/Curve/eraser"
 )
 
 CPMFindPackage(
   NAME           boost_preprocessor
   GIT_TAG        boost-1.87.0
+  GIT_SHALLOW TRUE
   GIT_REPOSITORY "https://github.com/boostorg/preprocessor"
 )
 
@@ -433,6 +445,7 @@ if (saucer_serializer STREQUAL "Glaze")
   CPMFindPackage(
     NAME           glaze
     VERSION        4.2.4
+    GIT_SHALLOW TRUE
     GIT_REPOSITORY "https://github.com/stephenberry/glaze"
     OPTIONS "glaze_DISABLE_SIMD_WHEN_SUPPORTED ${saucer_disable_simd}"
             "glaze_ENABLE_AVX2 ${saucer_enable_simd}"
@@ -451,6 +464,7 @@ if (saucer_serializer STREQUAL "Rflpp")
   CPMFindPackage(
     NAME           reflectcpp
     VERSION        0.16.0
+    GIT_SHALLOW TRUE
     GIT_REPOSITORY "https://github.com/getml/reflect-cpp"
     SYSTEM         ON
   )
